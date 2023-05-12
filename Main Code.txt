@@ -1,0 +1,185 @@
+#include <DFRobot_MAX30102.h>
+DFRobot_MAX30102 particleSensor;
+
+/*
+ * mlx
+ */
+ 
+#include <Wire.h>
+#include <Adafruit_MLX90614.h>
+Adafruit_MLX90614 mlx = Adafruit_MLX90614();
+
+/*
+ * variables
+ */
+
+double temp_amb;
+double temp_obj;
+double calibration = 2.36;
+
+/*
+ * oled
+ */
+#include <Adafruit_GFX.h>        //OLED libraries
+#include <Adafruit_SSD1306.h>
+
+#define SCREEN_WIDTH 128 // OLED display width, in pixels
+#define SCREEN_HEIGHT 64 // OLED display height, in pixels
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
+
+void setup()
+{
+  //Init serial
+  Serial.begin(115200);
+  while (!particleSensor.begin()) {
+    Serial.println("MAX30102 was not found");
+//    delay(1000);
+  }
+  particleSensor.sensorConfiguration(/*ledBrightness=*/50, /*sampleAverage=*/SAMPLEAVG_4, \
+                        /*ledMode=*/MODE_MULTILED, /*sampleRate=*/SAMPLERATE_100, \
+                        /*pulseWidth=*/PULSEWIDTH_411, /*adcRange=*/ADCRANGE_16384);
+
+     /*
+    * mlx90
+    */
+  display.begin(SSD1306_SWITCHCAPVCC, 0x3C); //initialize with the I2C addr 0x3C (128x64)
+  display.clearDisplay();
+  display.setCursor(12,15);  
+  display.setTextSize(1);
+  display.setTextColor(WHITE);
+  display.println("Health Monitoring");
+  display.setCursor(45,30);
+  display.setTextSize(1);
+  display.print("System");
+  display.setCursor(35,45);
+  display.setTextSize(1);
+  display.print("\"Welcome\"");
+  display.display();
+
+  delay(2500);
+  Serial.println("Adafruit MLX90614 test");  
+  mlx.begin(); 
+    /*
+   * oled
+   */
+     display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
+  display.display();
+//  delay(1000);
+  
+  Serial.println("Initializing...");
+  display.clearDisplay();
+
+
+}
+
+int32_t SPO2 = 0; //SPO2
+int8_t SPO2Valid; //Flag to display if SPO2 calculation is valid
+int32_t heartRate = 0; //Heart-rate
+int8_t heartRateValid; //Flag to display if heart-rate calculation is valid 
+
+void loop()
+{
+  Serial.println(F("Wait about four seconds"));
+  particleSensor.heartrateAndOxygenSaturation(/**SPO2=*/&SPO2, /**SPO2Valid=*/&SPO2Valid, /**heartRate=*/&heartRate, /**heartRateValid=*/&heartRateValid);
+  //Print result 
+
+  Serial.print(F("heartRate="));
+  Serial.print(heartRate, DEC);
+  Serial.print(F(", heartRateValid="));
+  Serial.print(heartRateValid, DEC);
+  Serial.print(F("; SPO2="));
+  Serial.print(SPO2, DEC);
+  Serial.print(F(", SPO2Valid="));
+  Serial.println(SPO2Valid, DEC);
+   /*
+   * mlx
+   */
+  temp_amb = mlx.readAmbientTempC();
+  temp_obj = mlx.readObjectTempC();
+Serial.print("Ambient = ");   
+Serial.print(mlx.readAmbientTempC()); 
+Serial.print("*C\tObject = "); 
+Serial.print(mlx.readObjectTempC()); 
+Serial.println("*C");
+delay(500);
+
+  /*
+   * oled
+   */
+
+  display.clearDisplay();
+  display.setCursor(25,0);  
+  display.setTextSize(1);
+  display.setTextColor(WHITE);
+  display.println(" Temperature");
+  
+  display.setCursor(25,7);  
+  display.setTextSize(1);
+  display.setTextColor(WHITE);
+  display.println(" -----------");
+   
+  display.setCursor(10,15);
+  display.setTextSize(1);
+  display.print("Ambient: ");
+  display.print(temp_amb);
+  display.print((char)247);
+  display.print("C");
+ 
+  display.setCursor(10,25);
+  display.setTextSize(1);
+  display.print("Object: ");
+  display.print(temp_obj + calibration);
+  display.print((char)247);
+  display.print("C");
+ 
+  display.setCursor(10,40);
+  display.setTextSize(1);
+  display.print("BPM: ");
+  display.print(heartRate);
+
+  display.setCursor(10,50);
+  display.setTextSize(1);
+  display.print("SPO2: ");
+  display.print(SPO2);
+  display.display();
+  
+  /*
+   * Accepted&Rejected
+   */
+   
+  if(heartRate > 50 )
+  {
+    delay(1000);
+    if( (temp_obj + calibration) < 38 | heartRate < 100)
+    {
+      lcd_printaccepted(); 
+    }
+    if( (temp_obj + calibration) >= 38 & heartRate >= 100 )
+    {
+       lcd_printrejected();
+    }
+  }
+}
+
+void lcd_printaccepted()
+{
+  display.clearDisplay();
+  display.setCursor(35,30);
+  display.setTextSize(1);
+  display.print("Accepted ... ");
+  display.display();
+  delay(50);
+  
+}
+
+void lcd_printrejected()
+{
+  
+  display.clearDisplay();
+  display.setCursor(35,30);
+  display.setTextSize(1);
+  display.print("Rejected ...");
+  display.display();
+  delay(50);
+
+}
